@@ -1,169 +1,81 @@
-# StockBroker Client Web Dashboard
+# Stock Broker Client Dashboard
 
-A real-time stock broker dashboard built with **React**, **Node.js/Express**, and **Socket.IO**. Multiple users can log in independently, subscribe to live stock tickers, and watch prices update every second — all pushed server-side via WebSockets.
+Real-time stock dashboard. Users log in with their email, pick stocks to watch, and prices update live via WebSockets — no page refresh needed. Multiple users work independently in different tabs.
 
----
+## Stack
 
-## Features
+- **Frontend** — React 18 + Vite
+- **Backend** — Node.js, Express, Socket.IO
+- **Storage** — in-memory (no DB)
 
-| Feature | Details |
-|---|---|
-| **Login** | Email-only session (no password). Multiple users can run in separate tabs. |
-| **Subscriptions** | Subscribe/unsubscribe to any of 5 supported tickers: `GOOG`, `TSLA`, `AMZN`, `META`, `NVDA` |
-| **Live Prices** | Backend generates realistic ±2% price fluctuations every second |
-| **Per-user filtering** | Server pushes only the stocks each user is subscribed to (socket-level filtering) |
-| **Visual indicators** | Green ▲ / Red ▼ flash animation on every price tick |
-| **Multi-user** | Two users with different subscriptions update independently in real time |
-
----
-
-## Tech Stack
+## Project layout
 
 ```
-Frontend  → React 18 (Vite) + Socket.IO Client
-Backend   → Node.js + Express + Socket.IO
-Storage   → In-memory (no database)
-```
-
----
-
-## Project Structure
-
-```
-├── client/                  # React frontend (Vite)
-│   ├── src/
-│   │   ├── App.jsx          # Root: socket wiring, state
-│   │   ├── App.css          # Dark-theme styles
-│   │   └── components/
-│   │       ├── Login.jsx            # Email login screen
-│   │       ├── Dashboard.jsx        # Main layout
-│   │       ├── SubscriptionPanel.jsx # Sidebar: add/remove tickers
-│   │       └── StockCard.jsx        # Live price card with flash animation
-│   ├── index.html
-│   ├── vite.config.js
-│   └── package.json
-│
-├── server/                  # Node.js backend
-│   ├── server.js            # Express + Socket.IO + price generator
-│   └── package.json
-│
+├── client/
+│   └── src/
+│       ├── App.jsx                    # socket setup, global state
+│       ├── App.css
+│       └── components/
+│           ├── Login.jsx              # email login form
+│           ├── Dashboard.jsx          # page layout
+│           ├── SubscriptionPanel.jsx  # add / remove tickers
+│           └── StockCard.jsx          # live price card
+├── server/
+│   └── server.js                      # Express + Socket.IO + price engine
 └── README.md
 ```
 
----
+## Running locally
 
-## Getting Started
+You need Node v18+. Two terminals.
 
-### Prerequisites
-
-- **Node.js** v18+ (download: https://nodejs.org)
-- **npm** v9+ (ships with Node)
-
----
-
-### 1. Start the Backend
-
+**Terminal 1 — server**
 ```bash
 cd server
 npm install
-npm start
+npm start        # or: npm run dev  (nodemon watch mode)
 ```
+Runs on `http://localhost:4000`
 
-Server runs on **http://localhost:4000**
-
-> For development with auto-reload:
-> ```bash
-> npm run dev
-> ```
-
----
-
-### 2. Start the Frontend
-
-Open a **second terminal**:
-
+**Terminal 2 — client**
 ```bash
 cd client
 npm install
 npm run dev
 ```
+Opens on `http://localhost:5173`
 
-App opens at **http://localhost:5173**
+## How it works
 
----
+1. Enter your email to log in — no password, the email just identifies the session on the server.
+2. Subscribe to any of the 5 supported tickers: `GOOG`, `TSLA`, `AMZN`, `META`, `NVDA`. Anything else gets rejected.
+3. The server runs a `setInterval` that ticks every second, nudging each stock price by a random ±2% and pushing only the subscribed tickers to each socket connection.
+4. Each browser tab is its own socket session — two tabs with different emails get different price streams.
 
-### 3. Test Multi-User
+## Socket events
 
-1. Open **http://localhost:5173** in Tab 1 → log in as `alice@example.com` → subscribe to `TSLA`, `NVDA`
-2. Open **http://localhost:5173** in Tab 2 → log in as `bob@example.com` → subscribe to `GOOG`, `META`
-3. Watch both dashboards update independently every second with only their respective stocks.
+**Client → Server**
 
----
+| event | payload |
+|---|---|
+| `login` | `{ email }` |
+| `subscribe` | `{ ticker }` |
+| `unsubscribe` | `{ ticker }` |
 
-## API / Socket Events
+**Server → Client**
 
-### Client → Server
+| event | payload |
+|---|---|
+| `login_ack` | `{ email }` |
+| `price_update` | `{ TICKER: { price, prev, direction } }` |
+| `subscribe_ack` | `{ ticker, price, prev, direction }` |
+| `subscribe_error` | `{ message }` |
+| `unsubscribe_ack` | `{ ticker }` |
 
-| Event | Payload | Description |
-|---|---|---|
-| `login` | `{ email }` | Identify the user session |
-| `subscribe` | `{ ticker }` | Subscribe to a stock ticker |
-| `unsubscribe` | `{ ticker }` | Remove a subscription |
-
-### Server → Client
-
-| Event | Payload | Description |
-|---|---|---|
-| `login_ack` | `{ success, email }` | Confirms login |
-| `price_update` | `{ TICKER: { price, prev, direction } }` | Live tick (only subscribed tickers) |
-| `subscribe_ack` | `{ ticker, price, prev, direction }` | Confirms subscription + initial price |
-| `subscribe_error` | `{ message }` | Rejected ticker or duplicate sub |
-| `unsubscribe_ack` | `{ ticker }` | Confirms removal |
-
----
-
-## Supported Tickers
-
-| Ticker | Company | Approx Base Price |
-|---|---|---|
-| `GOOG` | Alphabet | $175 |
-| `TSLA` | Tesla | $245 |
-| `AMZN` | Amazon | $185 |
-| `META` | Meta | $490 |
-| `NVDA` | NVIDIA | $870 |
-
-Unsupported tickers are rejected with a clear error message.
-
----
-
-## Health Check
+## Health check
 
 ```bash
 curl http://localhost:4000/health
 ```
 
-Returns current prices and connected user count.
-
----
-
-## Scripts Reference
-
-| Directory | Command | Action |
-|---|---|---|
-| `server/` | `npm start` | Start server (production) |
-| `server/` | `npm run dev` | Start server with nodemon (watch mode) |
-| `client/` | `npm run dev` | Start Vite dev server |
-| `client/` | `npm run build` | Build for production |
-| `client/` | `npm run preview` | Preview production build locally |
-
----
-
-## Screenshots
-
-> Login screen → Dashboard with live price cards updating every second.
-
----
-
-## License
-
-MIT
+Returns live prices and number of connected users.
